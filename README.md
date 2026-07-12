@@ -1,32 +1,43 @@
 # TransitOps — Smart Transport Operations Platform
 
-Backend API for managing vehicles, drivers, trips, maintenance, fuel, expenses, and reporting for a logistics fleet.
+TransitOps is a fleet-management application for vehicles, drivers, trips, maintenance, fuel, expenses, and operational reporting. It provides a React frontend and an Express/SQLite API with role-based access control.
 
 ## Stack
 
-- Node.js + Express
-- SQLite (via `better-sqlite3`) — zero-config, file-based
-- JWT auth with role-based access control (RBAC)
+- Frontend: React, Vite, Vanilla CSS (`new_client/`)
+- Backend: Node.js, Express, SQLite via `better-sqlite3` (`server/`)
+- Security: JWT authentication, role-based access control, Helmet
 
 ## Setup
+
+Install and run the backend:
 
 ```bash
 cd server
 npm install
-npm rebuild better-sqlite3   # only needed if you see a NODE_MODULE_VERSION error
-cp .env.example .env         # optional — sensible defaults are baked in
-npm run seed                 # creates one demo login per role
-npm start                    # runs on http://localhost:4000
+npm rebuild better-sqlite3   # only if you see a NODE_MODULE_VERSION error
+cp .env.example .env         # optional; defaults are included
+npm run seed                 # creates the demo users
+npm start                    # http://localhost:4000
 ```
 
-Verify it's alive:
+Install and run the frontend in another terminal:
+
+```bash
+cd new_client
+npm install
+npm run dev                  # http://localhost:5173
+```
+
+Confirm the API is running:
+
 ```bash
 curl http://localhost:4000/health
 ```
 
 ## Demo logins
 
-Created by `npm run seed`:
+`npm run seed` creates the following accounts:
 
 | Role | Email | Password |
 |---|---|---|
@@ -35,21 +46,21 @@ Created by `npm run seed`:
 | Safety Officer | safety@transitops.com | password123 |
 | Financial Analyst | finance@transitops.com | password123 |
 
-`POST /auth/login` with one of these returns a JWT. Send it as `Authorization: Bearer <token>` on every other request.
+Use `POST /auth/login` to obtain a JWT, then send it as `Authorization: Bearer <token>` on protected requests.
 
-## Verifying everything still works
+## Verification
 
-After pulling changes or making edits, run the server in one terminal and the smoke test in another:
+Run the backend, then execute the smoke test from `server/`:
+
 ```bash
-npm start
-# in a second terminal:
 npm run smoke-test
 ```
-This exercises every mandatory business rule (unique registration numbers, cargo weight limits, expired-license/suspended-driver blocking, double-booking prevention, maintenance status transitions, dashboard/report endpoints) and prints a pass/fail summary.
+
+It covers registration uniqueness, load limits, license and suspension checks, double-booking prevention, maintenance transitions, and dashboard/report endpoints.
 
 ## API overview
 
-All routes except `/health`, `/auth/register`, and `/auth/login` require `Authorization: Bearer <token>`.
+All routes except `/health`, `/auth/register`, and `/auth/login` require authentication.
 
 | Area | Routes |
 |---|---|
@@ -62,35 +73,30 @@ All routes except `/health`, `/auth/register`, and `/auth/login` require `Author
 | Expenses | `POST/GET /expenses` |
 | Reports | `GET /reports/vehicle/:id`, `GET /reports/fleet`, `GET /reports/fleet/csv`, `GET /reports/dashboard` |
 
-### Roles
+## Business rules
 
-`FleetManager`, `Driver`, `SafetyOfficer`, `FinancialAnalyst` — passed at registration and enforced per-route (e.g. only a Fleet Manager can register a vehicle; only a Safety Officer or Fleet Manager can suspend a driver).
-
-### Mandatory business rules implemented
-
-- Vehicle registration number is unique (DB-enforced + friendly 409 response)
-- Retired / In Shop vehicles never appear in `/vehicles/available`
-- Suspended drivers or drivers with an expired license never appear in `/drivers/available`, and are blocked server-side at dispatch even if the client sends their ID directly
-- A vehicle or driver already `On Trip` cannot be assigned to a second trip
-- Cargo weight is validated against the vehicle's max load both at trip creation and at dispatch
-- Dispatching a trip sets both vehicle and driver to `On Trip`; completing or cancelling restores both to `Available`
-- Opening a maintenance record sets the vehicle to `In Shop`; closing it restores `Available` (unless the vehicle is `Retired`)
-- Vehicle ROI = `(Revenue − (Maintenance + Fuel)) / Acquisition Cost`, computed from completed trips' `revenue` field
-- CSV export available at `/reports/fleet/csv`
+- Vehicle registration numbers are unique.
+- Retired or in-shop vehicles cannot be dispatched.
+- Suspended drivers and drivers with expired licences cannot be assigned.
+- Vehicles and drivers already on a trip cannot be double-booked.
+- Cargo weight cannot exceed a vehicle's maximum load.
+- Dispatching marks the assigned vehicle and driver as `On Trip`; completing or cancelling restores availability.
+- Opening maintenance marks a vehicle `In Shop`; closing it restores availability unless it is retired.
+- Fleet reports include vehicle ROI; CSV export is available at `/reports/fleet/csv`.
 
 ## Project structure
 
-```
+```text
 server/
-  db.js                  — schema + lightweight migrations
-  index.js                — app entrypoint, wires routers together
-  seed.js                 — creates demo login accounts
-  middleware/auth.js       — JWT verification + role guard
-  routes/                 — one router per resource
-  services/tripService.js  — trip/maintenance state-transition engine
-  scripts/smoke-test.js    — end-to-end business-rule test
+  db.js                  # schema and lightweight migrations
+  index.js               # API entrypoint
+  seed.js                # demo user seed script
+  middleware/auth.js     # JWT verification and role guard
+  routes/                # resource routers
+  services/tripService.js
+  scripts/smoke-test.js
+new_client/
+  src/                   # React application
+  public/
+  package.json
 ```
-
-## Not included in this build
-
-Frontend (React client) — being built separately. Bonus features not yet implemented: PDF export, email reminders for expiring licenses, vehicle document management, dark mode.
