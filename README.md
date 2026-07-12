@@ -219,7 +219,7 @@ npm install
 npm run dev
 ```
 
-Backend: http://localhost:5000
+Backend: http://localhost:4000
 
 Frontend: http://localhost:5173
 
